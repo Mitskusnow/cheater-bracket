@@ -1,0 +1,63 @@
+import collections
+
+team_name = "DaiGurren"
+
+def move(my_pos, board, grid_dim, players):
+    x, y = my_pos
+    dirs = {"UP": (0, -1), "DOWN": (0, 1), "LEFT": (-1, 0), "RIGHT": (1, 0)}
+    
+    def is_safe(p, b_state):
+        return 0 <= p[0] < grid_dim and 0 <= p[1] < grid_dim and p not in b_state
+
+    def get_reachable_info(start_pos, b_state):
+        """Returns the total area and the number of 'edges' (walls/trails) touched."""
+        queue = collections.deque([start_pos])
+        visited = {start_pos}
+        edges_touched = 0
+        while queue:
+            curr = queue.popleft()
+            for d_val in dirs.values():
+                nxt = (curr[0] + d_val[0], curr[1] + d_val[1])
+                if is_safe(nxt, b_state):
+                    if nxt not in visited:
+                        visited.add(nxt)
+                        queue.append(nxt)
+                else:
+                    edges_touched += 1
+        return len(visited), edges_touched
+
+    # Identify opponents to keep distance if they have more space
+    opps = [p['pos'] for p in players if p['alive'] and p['pos'] != my_pos]
+
+    move_scores = []
+    for d_name, d_offset in dirs.items():
+        target = (x + d_offset[0], y + d_offset[1])
+        
+        if is_safe(target, board):
+            # 1. Lookahead: Simulate the move
+            temp_board = board.copy()
+            temp_board[target] = -1 
+            
+            area, edge_score = get_reachable_info(target, temp_board)
+            
+            # 2. Distance to nearest opponent (don't get head-on collided)
+            min_opp_dist = min([abs(target[0]-o[0]) + abs(target[1]-o[1]) for o in opps]) if opps else 100
+            
+            # 3. Compactness: We want high edge_score relative to area 
+            # (This forces the bot to stay 'flat' against surfaces)
+            compactness = edge_score / (area if area > 0 else 1)
+
+            # Heuristic: 
+            # - Area is the absolute priority (Survival).
+            # - Compactness is the strategy (Efficiency).
+            # - Opponent distance is a safety buffer.
+            score = (area * 1000) + (compactness * 500) + (min_opp_dist if min_opp_dist > 2 else -5000)
+            
+            move_scores.append((d_name, score))
+
+    if not move_scores:
+        return "UP" # Giga Drill Break attempt failed
+
+    # Sort by the highest heuristic score
+    move_scores.sort(key=lambda x: x[1], reverse=True)
+    return move_scores[0][0]
