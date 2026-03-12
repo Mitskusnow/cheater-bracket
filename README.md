@@ -1,0 +1,2 @@
+# cheater-bracket
+CHEATERS
